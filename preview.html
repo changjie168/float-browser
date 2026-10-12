@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>浮窗浏览器 · 预览</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden;
+    font-family: "Segoe UI", system-ui, -apple-system, "Microsoft YaHei", sans-serif; }
+  /* 模拟桌面背景 */
+  .desktop {
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(1200px 600px at 70% 20%, rgba(99,102,241,.25), transparent),
+      radial-gradient(900px 500px at 20% 90%, rgba(236,72,153,.22), transparent),
+      linear-gradient(135deg, #0f172a, #1e293b);
+    overflow: hidden;
+  }
+  .hint {
+    position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+    color: #cbd5e1; font-size: 12px; background: rgba(15,23,42,.6);
+    padding: 6px 12px; border-radius: 999px; backdrop-filter: blur(6px);
+  }
+
+  /* 浮窗本体 */
+  .fb-window {
+    position: absolute; left: 130px; top: 90px; width: 460px; height: 340px;
+    background: #fff; border-radius: 10px; overflow: hidden;
+    box-shadow: 0 18px 50px rgba(0,0,0,.45);
+    transition: box-shadow .15s ease;
+  }
+  .fb-window.pinned {
+    box-shadow: 0 0 0 2px #eab308, 0 18px 50px rgba(0,0,0,.5);
+    z-index: 9999;
+  }
+  .fb-window.minimized { height: 32px !important; }
+  .fb-window.minimized #frame, .fb-window.minimized .rz { display: none; }
+
+  #frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; z-index: 1; }
+
+  #bar {
+    position: absolute; top: 0; left: 0; right: 0; height: 32px; z-index: 10;
+    display: flex; align-items: center; gap: 6px; padding: 0 8px;
+    background: rgba(24,24,28,0.86);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    color: #e8e8ea; user-select: none; font-size: 13px;
+  }
+  #bar .grip { cursor: grab; width: 14px; text-align: center; opacity: .65; }
+  #bar.dragging { cursor: grabbing; }
+  #url {
+    flex: 1; min-width: 40px; height: 22px; border: 0; outline: 0; border-radius: 5px;
+    background: rgba(255,255,255,0.12); color: #fff; padding: 0 8px; font-size: 12px;
+  }
+  #url::placeholder { color: rgba(255,255,255,0.5); }
+  .btn {
+    height: 22px; min-width: 24px; padding: 0 6px; border: 0; border-radius: 5px;
+    background: rgba(255,255,255,0.10); color: #e8e8ea; cursor: pointer;
+    font-size: 13px; line-height: 22px; text-align: center;
+  }
+  .btn:hover { background: rgba(255,255,255,0.20); }
+  .btn.active { background: #eab308; color: #111; }
+
+  .rz { position: absolute; z-index: 30; background: transparent; }
+  .rz:hover { background: rgba(99,102,241,0.45); }
+  .rz.n  { top: 0; left: 0; right: 0; height: 5px; cursor: n-resize; }
+  .rz.s  { bottom: 0; left: 0; right: 0; height: 5px; cursor: s-resize; }
+  .rz.w  { top: 0; bottom: 0; left: 0; width: 5px; cursor: w-resize; }
+  .rz.e  { top: 0; bottom: 0; right: 0; width: 5px; cursor: e-resize; }
+  .rz.nw, .rz.ne, .rz.sw, .rz.se { width: 12px; height: 12px; z-index: 31; }
+  .rz.nw { top: 0; left: 0; cursor: nw-resize; }
+  .rz.ne { top: 0; right: 0; cursor: ne-resize; }
+  .rz.sw { bottom: 0; left: 0; cursor: sw-resize; }
+  .rz.se { bottom: 0; right: 0; cursor: se-resize; }
+
+  .pin-badge {
+    position: absolute; left: 8px; bottom: 8px; z-index: 12; display: none;
+    font-size: 11px; color: #111; background: #eab308; padding: 2px 8px; border-radius: 999px;
+  }
+  .fb-window.pinned .pin-badge { display: block; }
+
+  #restore {
+    position: fixed; left: 16px; bottom: 16px; display: none;
+    font-size: 12px; color: #e8e8ea; background: rgba(99,102,241,.9);
+    padding: 8px 14px; border-radius: 8px; cursor: pointer; border: 0;
+  }
+</style>
+</head>
+<body>
+  <div class="desktop">
+    <div class="fb-window" id="win">
+      <iframe id="frame" src="start.html"></iframe>
+
+      <div id="bar">
+        <span class="grip" title="拖动窗口">⠿</span>
+        <input id="url" type="text" placeholder="输入网址或搜索词，回车打开…" spellcheck="false">
+        <button class="btn" id="back" title="后退">‹</button>
+        <button class="btn" id="reload" title="刷新">⟳</button>
+        <button class="btn" id="home" title="主页">⌂</button>
+        <button class="btn" id="ext" title="在浏览器打开">↗</button>
+        <button class="btn" id="pin" title="钉住 / 取消钉住">📌</button>
+        <button class="btn" id="min" title="最小化">—</button>
+        <button class="btn" id="close" title="关闭">✕</button>
+      </div>
+
+      <div class="pin-badge">★ 置顶</div>
+
+      <div class="rz n" data-dir="n"></div>
+      <div class="rz s" data-dir="s"></div>
+      <div class="rz w" data-dir="w"></div>
+      <div class="rz e" data-dir="e"></div>
+      <div class="rz nw" data-dir="nw"></div>
+      <div class="rz ne" data-dir="ne"></div>
+      <div class="rz sw" data-dir="sw"></div>
+      <div class="rz se" data-dir="se"></div>
+    </div>
+
+    <div class="hint">预览模式：拖标题栏移动 · 拖边缘/四角缩放 · 点 📌 钉住（置顶高亮）· 真实运行请用 float_browser.py</div>
+    <button id="restore">↺ 重新打开预览窗口</button>
+  </div>
+
+<script>
+(function () {
+  var win    = document.getElementById('win');
+  var frame  = document.getElementById('frame');
+  var url    = document.getElementById('url');
+  var bar    = document.getElementById('bar');
+  var pinBtn = document.getElementById('pin');
+  var restore= document.getElementById('restore');
+  var pinned = false;
+  var geo = { x: 130, y: 90, w: 460, h: 340 };
+
+  function applyGeo() {
+    win.style.left = geo.x + 'px';
+    win.style.top  = geo.y + 'px';
+    win.style.width  = geo.w + 'px';
+    win.style.height = geo.h + 'px';
+  }
+
+  function normalize(input) {
+    input = (input || '').trim();
+    if (!input) return '';
+    if (/^https?:\/\//i.test(input)) return input;
+    if (input.indexOf('.') > 0 && !input.includes(' ') && !input.includes('/')) return 'https://' + input;
+    if (/^[\w-]+(\.[\w-]+)+(\/.*)?$/.test(input)) return 'https://' + input;
+    return 'https://www.bing.com/search?q=' + encodeURIComponent(input);
+  }
+  function go() { var t = normalize(url.value); if (t) frame.src = t; }
+
+  url.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+  document.getElementById('reload').onclick = function () { frame.src = frame.src; };
+  document.getElementById('home').onclick   = function () { frame.src = 'start.html'; url.value = ''; };
+  document.getElementById('back').onclick   = function () { try { frame.contentWindow.history.back(); } catch (e) {} };
+  document.getElementById('ext').onclick   = function () { window.open(frame.src, '_blank'); };
+  pinBtn.onclick = function () {
+    pinned = !pinned;
+    pinBtn.classList.toggle('active', pinned);
+    win.classList.toggle('pinned', pinned);
+  };
+  document.getElementById('min').onclick = function () { win.classList.toggle('minimized'); };
+  document.getElementById('close').onclick = function () { win.style.display = 'none'; restore.style.display = 'block'; };
+  restore.onclick = function () { win.style.display = ''; restore.style.display = 'none'; };
+
+  // 拖动（标题栏）
+  bar.addEventListener('mousedown', function (e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+    e.preventDefault();
+    var sx = e.clientX, sy = e.clientY, g = { x: geo.x, y: geo.y };
+    bar.classList.add('dragging');
+    function mv(ev) { geo.x = g.x + (ev.clientX - sx); geo.y = g.y + (ev.clientY - sy); applyGeo(); }
+    function up() { bar.classList.remove('dragging'); document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); }
+    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+  });
+
+  // 八向缩放
+  Array.prototype.forEach.call(document.querySelectorAll('.rz'), function (el) {
+    el.addEventListener('mousedown', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      var dir = el.getAttribute('data-dir');
+      var sx = e.clientX, sy = e.clientY, g = { x: geo.x, y: geo.y, w: geo.w, h: geo.h };
+      function mv(ev) {
+        var dx = ev.clientX - sx, dy = ev.clientY - sy;
+        var x = g.x, y = g.y, w = g.w, h = g.h;
+        if (dir.indexOf('e') >= 0) w = g.w + dx;
+        if (dir.indexOf('s') >= 0) h = g.h + dy;
+        if (dir.indexOf('w') >= 0) { w = g.w - dx; x = g.x + dx; }
+        if (dir.indexOf('n') >= 0) { h = g.h - dy; y = g.y + dy; }
+        if (w < 240) { if (dir.indexOf('w') >= 0) x = g.x + (g.w - 240); w = 240; }
+        if (h < 160) { if (dir.indexOf('n') >= 0) y = g.y + (g.h - 160); h = 160; }
+        geo = { x: x, y: y, w: w, h: h }; applyGeo();
+      }
+      function up() { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); }
+      document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+    });
+  });
+
+  frame.addEventListener('load', function () {
+    try { url.value = frame.contentWindow.location.href; } catch (e) {}
+  });
+
+  applyGeo();
+})();
+</script>
+</body>
+</html>

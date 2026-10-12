@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>主页</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, "Microsoft YaHei", sans-serif;
+    background: linear-gradient(135deg, #1e1b4b, #312e81);
+    color: #e8e8ea; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; height: 100vh; padding: 16px;
+  }
+  h1 { font-weight: 600; letter-spacing: 1px; margin: 0 0 22px; font-size: 20px; }
+  .box { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; max-width: 90%; }
+  a {
+    display: inline-block; padding: 8px 14px; border-radius: 8px;
+    background: rgba(255, 255, 255, 0.12); color: #fff; text-decoration: none; font-size: 13px;
+  }
+  a:hover { background: rgba(255, 255, 255, 0.24); }
+  .tip { opacity: .6; font-size: 12px; margin-top: 20px; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>🌐 浮窗浏览器</h1>
+  <div class="box">
+    <a href="https://www.bing.com">Bing</a>
+    <a href="https://www.baidu.com">百度</a>
+    <a href="https://github.com">GitHub</a>
+    <a href="https://www.youtube.com">YouTube</a>
+    <a href="https://music.163.com">网易云音乐</a>
+    <a href="https://web.wechat.com">微信网页版</a>
+  </div>
+  <p class="tip">在顶部地址栏输入网址或搜索词，回车即可打开。<br>📌 钉住后可始终显示在所有窗口最上层。</p>
+</body>
+</html>

@@ -1,0 +1,30 @@
+# ---- Python ----
+__pycache__/
+*.pyc
+
+# ---- PyInstaller 产物与工作目录 ----
+build_exe/
+build_v*/
+dist_v*/
+
+# ---- 日志 ----
+*.log
+
+# ---- 自检 / 预览截图（运行时生成的产物）----
+selftest_*.png
+preview_*.png
+glyph_test*.png
+icon_frames_check.png
+
+# ---- 图标构建依赖 ----
+iconbuild/node_modules/
+
+# ---- 安装程序成品（通过 GitHub Releases 分发，不进仓库）----
+installer/*.exe
+
+# ---- 打包工具链（体积大，获取方式见《换机开发指南.md》）----
+_tools/
+
+# ---- 系统杂项 ----
+Thumbs.db
+desktop.ini

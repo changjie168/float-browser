@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>浮窗浏览器</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden;
+    font-family: "Segoe UI", system-ui, -apple-system, "Microsoft YaHei", sans-serif; }
+  #frame { position: fixed; inset: 0; width: 100%; height: 100%; border: 0;
+    background: #fff; z-index: 1; }
+
+  /* 顶部控制条（兼作拖动区） */
+  #bar {
+    position: fixed; top: 0; left: 0; right: 0; height: 32px; z-index: 10;
+    display: flex; align-items: center; gap: 6px; padding: 0 8px;
+    background: rgba(24, 24, 28, 0.86);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    color: #e8e8ea; user-select: none; font-size: 13px;
+  }
+  #bar.dragging { cursor: grabbing; }
+  #bar .grip { cursor: grab; width: 14px; text-align: center; opacity: .65; }
+  #url {
+    flex: 1; min-width: 40px; height: 22px; border: 0; outline: 0; border-radius: 5px;
+    background: rgba(255, 255, 255, 0.12); color: #fff; padding: 0 8px; font-size: 12px;
+  }
+  #url::placeholder { color: rgba(255, 255, 255, 0.5); }
+  .btn {
+    height: 22px; min-width: 24px; padding: 0 6px; border: 0; border-radius: 5px;
+    background: rgba(255, 255, 255, 0.10); color: #e8e8ea; cursor: pointer;
+    font-size: 13px; line-height: 22px; text-align: center;
+  }
+  .btn:hover { background: rgba(255, 255, 255, 0.20); }
+  .btn.active { background: #eab308; color: #111; }
+
+  /* 八向缩放手柄 */
+  .rz { position: fixed; z-index: 30; background: transparent; }
+  .rz:hover { background: rgba(99, 102, 241, 0.35); }
+  .rz.n  { top: 0; left: 0; right: 0; height: 5px; cursor: n-resize; }
+  .rz.s  { bottom: 0; left: 0; right: 0; height: 5px; cursor: s-resize; }
+  .rz.w  { top: 0; bottom: 0; left: 0; width: 5px; cursor: w-resize; }
+  .rz.e  { top: 0; bottom: 0; right: 0; width: 5px; cursor: e-resize; }
+  .rz.nw, .rz.ne, .rz.sw, .rz.se { width: 12px; height: 12px; z-index: 31; }
+  .rz.nw { top: 0; left: 0; cursor: nw-resize; }
+  .rz.ne { top: 0; right: 0; cursor: ne-resize; }
+  .rz.sw { bottom: 0; left: 0; cursor: sw-resize; }
+  .rz.se { bottom: 0; right: 0; cursor: se-resize; }
+  .rz.nw:hover, .rz.ne:hover, .rz.sw:hover, .rz.se:hover { background: rgba(99, 102, 241, 0.5); }
+
+  /* 站点拒绝内嵌时的提示 */
+  #warn {
+    position: fixed; inset: 32px 0 0 0; z-index: 5; display: none;
+    align-items: center; justify-content: center; flex-direction: column; gap: 12px;
+    background: rgba(15, 15, 20, 0.92); color: #ddd; font-size: 13px; text-align: center; padding: 20px;
+  }
+</style>
+</head>
+<body>
+  <iframe id="frame" src="start.html"></iframe>
+
+  <div id="bar">
+    <span class="grip" title="拖动窗口">⠿</span>
+    <input id="url" type="text" placeholder="输入网址或搜索词，回车打开…" spellcheck="false">
+    <button class="btn" id="back" title="后退">‹</button>
+    <button class="btn" id="reload" title="刷新">⟳</button>
+    <button class="btn" id="home" title="主页">⌂</button>
+    <button class="btn" id="ext" title="在系统默认浏览器中打开">↗</button>
+    <button class="btn" id="pin" title="钉住 / 取消钉住（置顶）">📌</button>
+    <button class="btn" id="min" title="最小化">—</button>
+    <button class="btn" id="close" title="关闭">✕</button>
+  </div>
+
+  <div id="warn">
+    <div>该网站禁止被内嵌显示（X-Frame-Options / CSP）。</div>
+    <button class="btn" id="warnOpen" style="height:28px;line-height:28px;">↗ 在系统浏览器中打开</button>
+  </div>
+
+  <div class="rz n" data-dir="n"></div>
+  <div class="rz s" data-dir="s"></div>
+  <div class="rz w" data-dir="w"></div>
+  <div class="rz e" data-dir="e"></div>
+  <div class="rz nw" data-dir="nw"></div>
+  <div class="rz ne" data-dir="ne"></div>
+  <div class="rz sw" data-dir="sw"></div>
+  <div class="rz se" data-dir="se"></div>
+
+<script>
+(function () {
+  var frame  = document.getElementById('frame');
+  var url    = document.getElementById('url');
+  var bar     = document.getElementById('bar');
+  var pinBtn  = document.getElementById('pin');
+  var warn     = document.getElementById('warn');
+  var pinned   = false;
+  var current  = 'start.html';
+
+  function api() { return window.pywebview ? window.pywebview.api : null; }
+
+  function normalize(input) {
+    input = (input || '').trim();
+    if (!input) return '';
+    if (/^https?:\/\//i.test(input)) return input;
+    if (input.indexOf('.') > 0 && !input.includes(' ') && !input.includes('/')) return 'https://' + input;
+    if (/^[\w-]+(\.[\w-]+)+(\/.*)?$/.test(input)) return 'https://' + input;
+    return 'https://www.bing.com/search?q=' + encodeURIComponent(input);
+  }
+
+  function go() {
+    var target = normalize(url.value);
+    if (target) { current = target; frame.src = target; warn.style.display = 'none'; }
+  }
+
+  function showWarn() { warn.style.display = 'flex'; }
+
+  url.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.stopPropagation(); e.preventDefault(); go(); }
+  });
+  document.getElementById('reload').onclick = function () {
+    try { frame.contentWindow.location.reload(); } catch (e) { frame.src = frame.src; }
+  };
+  document.getElementById('home').onclick = function () {
+    current = 'start.html'; url.value = ''; frame.src = 'start.html'; warn.style.display = 'none';
+  };
+  document.getElementById('back').onclick = function () {
+    try { frame.contentWindow.history.back(); } catch (e) {}
+  };
+  document.getElementById('ext').onclick = function () { if (api()) api().open_external(current); };
+  document.getElementById('warnOpen').onclick = function () { if (api()) api().open_external(current); };
+  document.getElementById('min').onclick = function () { if (api()) api().minimize(); };
+  document.getElementById('close').onclick = function () { if (api()) api().close(); };
+  pinBtn.onclick = function () {
+    pinned = !pinned;
+    pinBtn.classList.toggle('active', pinned);
+    if (api()) api().toggle_pin();
+  };
+
+  // 拖动（顶部控制条，但输入框/按钮不触发）
+  var drag = null;
+  bar.addEventListener('mousedown', function (e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+    e.preventDefault();
+    drag = { sx: e.clientX, sy: e.clientY, gx: 0, gy: 0, gw: 0, gh: 0, ready: false };
+    var a = api(); if (!a) return;
+    a.get_geometry().then(function (g) {
+      drag.gx = g[0]; drag.gy = g[1]; drag.gw = g[2]; drag.gh = g[3]; drag.ready = true;
+      bar.classList.add('dragging');
+    });
+  });
+
+  // 八向缩放
+  var rz = null;
+  Array.prototype.forEach.call(document.querySelectorAll('.rz'), function (el) {
+    el.addEventListener('mousedown', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      rz = { dir: el.getAttribute('data-dir'), sx: e.clientX, sy: e.clientY,
+             gx: 0, gy: 0, gw: 0, gh: 0, ready: false };
+      var a = api(); if (!a) return;
+      a.get_geometry().then(function (g) {
+        rz.gx = g[0]; rz.gy = g[1]; rz.gw = g[2]; rz.gh = g[3]; rz.ready = true;
+      });
+    });
+  });
+
+  window.addEventListener('mousemove', function (e) {
+    if (drag && drag.ready) {
+      var dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+      if (api()) api().set_geometry(drag.gx + dx, drag.gy + dy, drag.gw, drag.gh);
+    } else if (rz && rz.ready) {
+      var dx = e.clientX - rz.sx, dy = e.clientY - rz.sy, d = rz.dir;
+      var x = rz.gx, y = rz.gy, w = rz.gw, h = rz.gh;
+      if (d.indexOf('e') >= 0) w = rz.gw + dx;
+      if (d.indexOf('s') >= 0) h = rz.gh + dy;
+      if (d.indexOf('w') >= 0) { w = rz.gw - dx; x = rz.gx + dx; }
+      if (d.indexOf('n') >= 0) { h = rz.gh - dy; y = rz.gy + dy; }
+      if (w < 240) { if (d.indexOf('w') >= 0) x = rz.gx + (rz.gw - 240); w = 240; }
+      if (h < 160) { if (d.indexOf('n') >= 0) y = rz.gy + (rz.gh - 160); h = 160; }
+      if (api()) api().set_geometry(x, y, w, h);
+    }
+  });
+  window.addEventListener('mouseup', function () {
+    drag = null; rz = null; bar.classList.remove('dragging');
+  });
+
+  // 尽力同步地址栏；跨域时读取会抛错，被 catch 吞掉
+  frame.addEventListener('load', function () {
+    try { url.value = frame.contentWindow.location.href; } catch (e) {}
+    // 若内嵌被拒，通常表现为空白且无法读取地址，给出提示入口
+    try { if (frame.contentWindow.location.href === 'about:blank') showWarn(); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>
