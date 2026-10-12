@@ -7,9 +7,10 @@
                            用于判断小尺寸下图标是否还认得出、是否精致
 """
 import sys
+import os
 import traceback
 
-sys.path.insert(0, r"I:\0-lingshi\llq\float-browser")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
     import float_browser_native as fb
@@ -26,7 +27,7 @@ try:
     LIGHT = Color.FromArgb(0xFA, 0xFA, 0xFC)
     DARK = Color.FromArgb(0x1D, 0x1D, 0x1F)
     WHITE = Color.FromArgb(0xFF, 0xFF, 0xFF)
-    BASE = r"I:\0-lingshi\llq\float-browser"
+    BASE = os.path.dirname(os.path.abspath(__file__))
 
     def draw_row(g, z, bg, fg, top, names=False):
         for i, gl in enumerate(glyphs):

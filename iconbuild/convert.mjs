@@ -1,9 +1,12 @@
 import { Resvg } from '@resvg/resvg-js';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
 // 源 SVG 已随项目保存，保证图标可复现重建（原图来自用户桌面）
-const SRC = 'I:/0-lingshi/llq/float-browser/iconbuild/fuchuang.svg';
-const OUT = 'I:/0-lingshi/llq/float-browser/app_1024.png';
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const SRC = join(__dirname, 'fuchuang.svg');
+const OUT = join(__dirname, '..', 'app_1024.png');
 
 const svg = fs.readFileSync(SRC, 'utf8');
 const resvg = new Resvg(svg, {
