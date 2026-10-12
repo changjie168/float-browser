@@ -1,8 +1,9 @@
 # 浮窗浏览器（Float Browser · 原生 WebView2 版）
 
-<img width="712" height="404" alt="QQ截图20261012091920" src="https://github.com/user-attachments/assets/c17f1280-11a4-45d2-aed4-a78ae0928ab1" />
 <img width="712" height="404" alt="QQ截图20261012091914" src="https://github.com/user-attachments/assets/8466d9a6-a7a9-4fbd-9741-0126d3e80ffb" />
-
+（未开启全屏）
+<img width="712" height="404" alt="QQ截图20261012091920" src="https://github.com/user-attachments/assets/c17f1280-11a4-45d2-aed4-a78ae0928ab1" />
+（开启全屏/边框可自由缩放）
 
 一个主打「轻便、不占内存」的无边框浏览器：窗口无边框、可随意缩小 / 拖到任意尺寸、
 支持 📌 钉住使其始终显示在所有窗口最上层，**并且能正常打开任何网站**。
